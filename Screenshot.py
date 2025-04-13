@@ -11,17 +11,17 @@ def get_script_dir():
     else:  # 脚本运行的情况
         return os.path.dirname(os.path.abspath(__file__))
 
-# 安装依赖库
-def install_dependencies():
-    required_libraries = ["PyQt5", "Pillow", "opencv-python", "psutil", "pywin32", "moviepy"]
-    for lib in required_libraries:
-        try:
-            __import__(lib)
-        except ImportError:
-            print(f"{lib} 未安装，正在安装...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", lib])
+# # 安装依赖库
+# def install_dependencies():
+#     required_libraries = ["PyQt5", "Pillow", "opencv-python", "psutil", "pywin32", "moviepy"]
+#     for lib in required_libraries:
+#         try:
+#             __import__(lib)
+#         except ImportError:
+#             print(f"{lib} 未安装，正在安装...")
+#             subprocess.check_call([sys.executable, "-m", "pip", "install", lib])
 
-install_dependencies()
+# install_dependencies()
 
 import time
 from datetime import datetime
@@ -36,14 +36,14 @@ import cv2
 import psutil
 import win32gui
 import win32process
-from moviepy.editor import VideoFileClip  # 用于视频格式转换
+from moviepy import VideoFileClip  # 用于视频格式转换
 
 class ScreenshotApp(QWidget):
     def __init__(self):
         super().__init__()
         self.screenshot_interval = 5  # 默认截图间隔（秒）
         self.save_path = "C:/Multishot"  # 默认保存路径
-        self.privacy_apps = ["WeChat.exe", "QQ.exe"]  # 隐私规避软件列表
+        self.privacy_apps = ["WeChat.exe", "QQ.exe","Chrome.exe"]  # 隐私规避软件列表
         self.timer = QTimer()
         self.timer.timeout.connect(self.take_screenshot)
         self.is_screenshot_running = False  # 截图状态
@@ -186,10 +186,15 @@ class ScreenshotApp(QWidget):
     def is_privacy_window_active(self):
         window = win32gui.GetForegroundWindow()
         tid, pid = win32process.GetWindowThreadProcessId(window)
-        process = psutil.Process(pid)
-        for app in self.privacy_apps:
-            if app.lower() in process.name().lower():
-                return True
+        if pid <= 0:  # 检查 pid 是否有效
+            return False
+        try:
+            process = psutil.Process(pid)
+            for app in self.privacy_apps:
+                if app.lower() in process.name().lower():
+                    return True
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
         return False
 
     def convert_screenshots(self):
@@ -266,24 +271,22 @@ class ScreenshotApp(QWidget):
                 except PermissionError:
                     print(f"无法删除图片：{image}，文件可能被占用")
             print(f"已删除原图片：{folder_path}")
+
+        # 将文件夹重命名为“日期+（已转换）”
+        new_folder_name = f"{os.path.basename(folder_path)}（已转换）"
+        new_folder_path = os.path.join(self.save_path, new_folder_name)
+        if os.path.exists(new_folder_path):
+            # 如果目标文件夹已存在，则将新截图文件移动到已存在的文件夹中
+            for image in image_paths:
+                try:
+                    shutil.move(image, new_folder_path)
+                except PermissionError:
+                    print(f"无法移动图片：{image}，文件可能被占用")
+            print(f"已将新截图文件移动到：{new_folder_path}")
         else:
-            # 将文件夹重命名为“日期+（已转换）”
-            new_folder_name = f"{os.path.basename(folder_path)}（已转换）"
-            new_folder_path = os.path.join(self.save_path, new_folder_name)
-            if os.path.exists(new_folder_path):
-                # 如果目标文件夹已存在，则将新截图文件移动到已存在的文件夹中
-                for image in image_paths:
-                    try:
-                        shutil.move(image, new_folder_path)
-                    except PermissionError:
-                        print(f"无法移动图片：{image}，文件可能被占用")
-                    except FileNotFoundError:
-                        print(f"文件无法找到：{image}")
-                print(f"已将新截图文件移动到：{new_folder_path}")
-            else:
-                # 如果目标文件夹不存在，则直接重命名
-                os.rename(folder_path, new_folder_path)
-                print(f"文件夹已重命名为：{new_folder_name}")
+            # 如果目标文件夹不存在，则直接重命名
+            os.rename(folder_path, new_folder_path)
+            print(f"文件夹已重命名为：{new_folder_name}")
 
     def convert_to_high_quality_mov(self, input_video, output_video):
         """
